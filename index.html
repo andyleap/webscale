@@ -1,0 +1,198 @@
+<html>
+<head>
+</head>
+<body>
+    <style>
+        .recipe {
+            display: grid;
+            grid-template-columns: 1fr 1fr
+        }
+        .recipe > div {
+            display: contents;
+        }
+        .active {
+            font-weight:bolder;
+        }
+        .done {
+            color:grey;
+        }
+    </style>
+    <div id="app"></div>
+
+    <script>
+        (()=>{let a=(a,b={},...c)=>({$:a,a:!b||b.$||b.concat?{c:[].concat(b||[],...c)}:(b.c=[].concat(...c),b)}),b=(a=[],b,c)=>a.map(a=>a(b,c)),c=a=>new Proxy(a,{get:(a,b,d)=>c((...c)=>((d=a(...c)).a.className=(d.a.className||" ")+" "+b,d))}),d=window.R=(a,c,e=c.childNodes,f=0)=>{for([].concat(a).map((g,h,i,j=e[f++],k=g.s=(j?j.a==g.$&&(g.s||j.s):g.s)||{},l={a:g.$,s:k,m:[],u:[],d:[]})=>{for(;(g.$||a).bind;)g=g.$(g.a,k,b=>Object.assign(k,b)&&d(a,c),l);h=g.replace?document.createTextNode(g):document.createElement(g.$),h=j?j.$!=g.$&&j.data!=g?(c.replaceChild(h,j),h):j:c.appendChild(h),i=j?j.a==l.a?l.d:(b(j.u),d([],j),l.m):l.m,Object.assign(h,g,l),g.replace?h.data=g:Object.keys(g.a).map((a)=>"style"==a?Object.assign(h[a],g.a[a]):h[a]!==g.a[a]&&(h[a]=g.a[a]))&&l.r||d(g.a.c,h),b(i,h,j)});e[f];)b(e[f].u),d([],c.removeChild(e[f]))};window.H=new Proxy(a,{get:(b,d)=>b[d]||c(a.bind(b,d))})})()
+        window.K=(a,b,c="=e",d=a[c]=a[c]||{})=>Object.keys(d).map(a=>b.find(({a:{key:b}})=>b==a)||delete d[a])&&b.map(a=>(a.s=d[a.a.key]=d[a.a.key]||a.s||{})&&a)
+    </script>
+
+    <script>
+        let scaleService = '1bc50001-0200-0aa5-e311-24cb004a98c5';
+        let weightCharacteristic = '1bc50002-0200-0aa5-e311-24cb004a98c5';
+        let tareCharacteristic = '1bc50006-0200-0aa5-e311-24cb004a98c5';
+        let $ = document.querySelector.bind(document);
+
+        let {div} = H;
+
+        let recipe = [
+            {name: "Ground Beef", amount: 263},
+            {name: "Rice", amount: 139},
+            {name: "Canola Oil", amount: 33},
+            {name: "Corn", amount: 19},
+            {name: "Applesauce", amount: 41},
+            {name: "BalanceIt", amount: 9.7}
+        ];
+
+        async function demoRamp(from, to, ticks, setWeight) {
+            for (let i = 0; i < ticks; i++) {
+                let weight = from + (to - from) * i / ticks;
+                setWeight(weight);
+                await sleep(100);
+            }
+            setWeight(to);
+        }
+        function sleep(ms) {
+            return new Promise(res => setTimeout(res, ms));
+        }
+
+        function Connect(props, state, setState) {
+            const {server = null} = state;
+            const {setWeight = weight => {}, setTare = tare => {}, connect = () => {}} = props;
+            return div(
+                H('button',
+                    {
+                        onclick: async function() {
+                            let device = await navigator.bluetooth.requestDevice({
+                                filters: [{
+                                    services: [scaleService]
+                                }]
+                            });
+
+                            let server = await device.gatt.connect();
+                            let service = await server.getPrimaryService(scaleService);
+
+                            let weight = await service.getCharacteristic(weightCharacteristic);
+                            let tare = await service.getCharacteristic(tareCharacteristic);
+                            await weight.startNotifications();
+                            await tare.startNotifications();
+
+                            let curWeight = await weight.readValue();
+                            let curTare = await tare.readValue();
+                            setWeight(curWeight.getUint32(0, true)/1000);
+                            setTare(curTare.getUint32(0, true)/1000);
+
+                            weight.addEventListener('characteristicvaluechanged', event => {
+                                setWeight(event.target.value.getUint32(0, true)/1000);
+                            });
+                            tare.addEventListener('characteristicvaluechanged', event => {
+                                setTare(event.target.value.getUint32(0, true)/1000);
+                            });
+
+                            connect();
+                        }
+                    },
+                    'Connect Scale'
+                ),
+                H('button', 
+                    {
+                        async onclick() {
+                            setWeight(100);
+                            setTare(100);
+                            connect();
+
+                            await sleep(1000);
+                            
+                            let curWeight = 100;
+
+                            for(var step of recipe) {
+                                var targetAmount = (step.amount*3) * (Math.random()/50 + 1);
+                                await demoRamp(curWeight, curWeight + targetAmount, 20, setWeight);
+                                await sleep(500);
+                                curWeight += targetAmount;
+                                setTare(curWeight-0.01);
+                                setTare(curWeight);
+                                setWeight(curWeight);
+                                await sleep(500);
+                            }
+
+
+                        }
+                    },
+                    'Demo'
+                )
+            );
+        }
+
+        function Scale(props, state, setState) {
+            const {connected = false, weight = null, tare = null, firstTare = null, lastTare = null, pos = -1, actuals=[], batchSize = 0} = state;
+            const {recipe} = props;
+
+            if(!connected) {
+                return H(Connect, {setWeight: weight => setState({weight: weight}), setTare: tare => setState({tare: tare}), connect: () => setState({connected: true})});
+            }
+
+            if(tare-1 > lastTare) {
+                if(pos >= 0){
+                    actuals.push(weight-lastTare);
+                }
+                var newState = {
+                    lastTare: tare,
+                    firstTare: firstTare || tare,
+                    pos: pos + 1,
+                    actuals: actuals
+                };
+                if(pos == 0) {
+                    newState.batchSize = Math.floor((weight-lastTare) / recipe[0].amount);
+                }
+                setState(newState);
+            }
+
+            let steps = [];
+            let tempBatchSize = batchSize;
+            if(pos == 0) {
+                tempBatchSize = Math.floor((weight-tare) / recipe[0].amount);
+            }
+
+            for(var [i, step] of recipe.entries()) {
+                className = '';
+                if (i == pos) {
+                    className = 'active';
+                } else if (i < pos) {
+                    className = 'done';
+                }
+                amount = step.amount * tempBatchSize;
+                if(i == 0 && pos == 0) {
+                    amount += step.amount;
+                }
+                if (i == pos) {
+                    amount -= weight - tare;
+                }
+                if(i < pos) {
+                    amount = actuals[i];
+                }
+                steps.push(
+                    div(
+                        {className: className},
+                        div.ingredient(step.name),
+                        div.amount(amount.toFixed(1) + 'g')
+                    )
+                );
+            }
+
+
+            return div(
+                div.recipe(...steps),
+                div("Current step", div.reading((weight-tare).toFixed(1) + 'g')),
+                div("Total recipe", div.total((weight-firstTare).toFixed(1) + 'g')),
+            );
+        }
+
+        R(
+            H('div', H(Scale, {recipe: recipe})),
+            $('#app')
+        )
+        
+        
+    </script>
+
+
+</body>
+</html>
