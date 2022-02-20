@@ -197,6 +197,9 @@
             H('div', H(Scale, {recipe: recipe})),
             $('#app')
         )
+        setTimeout(async () => {
+            navigator.wakeLock.request('screen');
+        }, 1000);
         
         
     </script>
