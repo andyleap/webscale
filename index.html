@@ -80,7 +80,7 @@
             {name: "BalanceIt", amount: 3.75}
         ]*/
 
-        let recipe = [
+        /*let recipe = [
             {name: "Chicken", amount: 82},
             {name: "Rice", amount: 99},
             {name: "Canola Oil", amount: 16},
@@ -88,7 +88,18 @@
             {name: "Broccoli", amount: 20},
             {name: "Applesauce", amount: 31},
             {name: "BalanceIt", amount: 3.75}
-        ]
+        ]*/
+
+        let recipes = {
+            "Chicken with broccoli and applesauce": [
+                {name: "Chicken", amount: 78},
+                {name: "Rice", amount: 119},
+                {name: "Canola Oil", amount: 16},
+                {name: "Broccoli", amount: 39},
+                {name: "Applesauce", amount: 31},
+                {name: "BalanceIt", amount: 3.75}
+            ]
+        };
 
         async function demoRamp(from, to, ticks, setWeight) {
             for (let i = 0; i < ticks; i++) {
@@ -104,7 +115,7 @@
 
         function Connect(props, state, setState) {
             const {server = null} = state;
-            const {setWeight = weight => {}, setTare = tare => {}, connect = () => {}} = props;
+            const {setWeight = weight => {}, setTare = tare => {}, connect = () => {}, recipe} = props;
             return div(
                 H('button',
                     {
@@ -175,7 +186,7 @@
             const {recipe} = props;
 
             if(!connected) {
-                return H(Connect, {setWeight: weight => setState({weight: weight}), setTare: tare => setState({tare: tare}), connect: () => setState({connected: true})});
+                return H(Connect, {setWeight: weight => setState({weight: weight}), setTare: tare => setState({tare: tare}), connect: () => setState({connected: true}), recipe: recipe});
             }
 
             if(tare-1 > lastTare) {
@@ -234,8 +245,26 @@
             );
         }
 
+        function RecipeSelector(props, state, setState) {
+            const {recipes} = props;
+            const {recipe} = state;
+            if(!recipe) {
+                return div(
+                    H('select',
+                        {
+                            onchange: function(event) {
+                                setState({recipe: recipes[event.target.value]});
+                            }
+                        },
+                        (["---"].concat(Object.keys(recipes))).map(recipe => H('option', {value: recipe}, recipe))
+                    )
+                );
+            }
+            return H('div', H(Scale, {recipe: recipe}));
+        }
+
         R(
-            H('div', H(Scale, {recipe: recipe})),
+            H('div', H(RecipeSelector, {recipes: recipes})),
             $('#app')
         )
         setTimeout(async () => {
